@@ -1,15 +1,52 @@
+#!/usr/bin/env python
 """
 Plot concept for SciPy Central logo.
 
 """
+import argparse
+import os
+
 import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib.colors as colors
+import matplotlib.font_manager as fm
 import matplotlib.patches as patches
+import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
 
 from scipy.interpolate import UnivariateSpline
 import bezier
+
+
+CITIES = {
+    'atlantic': {'lat': 30.0, 'lon': -30.0},
+    'austin': {'lat': 30.3, 'lon': -97.7},
+    'new_york': {'lat': 40.7, 'lon': -74},
+    'paris': {'lat': 48.9, 'lon': 2.3},
+    'san_francisco': {'lat': 32.7, 'lon': -117},
+    'tokyo': {'lat': 35.7, 'lon': 140},
+    'beijing': {'lat': 39.9, 'lon': 116},
+    'munich': {'lat': 48.1, 'lon': 11.6},
+    'berlin': {'lat': 52.5, 'lon': 13.4},
+    'sao_paulo': {'lat': -23.5, 'lon': -46.6},
+    'toronto': {'lat': 43.6, 'lon': -79.4},
+    'johannesburg': {'lat': -26.2, 'lon': 28.1},
+    'moscow': {'lat': 55.8, 'lon': 37.6},
+    'mumbai': {'lat': 19, 'lon': 72.8},
+    'london': {'lat': 51.5, 'lon': 0.1},
+    'seoul': {'lat': 37.6, 'lon': 127},
+    'mexico_city': {'lat': 19.1, 'lon': -99.4},
+}
+
+WATER_COLOR = np.asarray(colors.hex2color(colors.cnames['royalblue']))
+LAND_COLOR = 'cornflowerblue'
+LINE_COLOR = WATER_COLOR * 0.8
+LOGO_COLOR = 'white'
+LOGO_ALPHA = 0.8
+LINE_WIDTH = 3
+OUTLINE_WIDTH = LINE_WIDTH / 1.5
+# Instead of centering the target city on the center of the logo, center the
+# city the on space surrounded by the top curl in the 'S' of the logo.
+CENTER_ON_TOP_OF_S = True
 
 
 class Circle(object):
@@ -68,6 +105,7 @@ class ScipyLogo(object):
         self.circle = Circle(self.center, self.radius)
         if flip:
             yc = self.CENTER[1]
+
             def flip_anchor(args):
                 xy, theta, length = args
                 x, y = xy
@@ -79,16 +117,16 @@ class ScipyLogo(object):
         # note that angles are clockwise because of inverted y-axis
         self._anchors = [bezier.SymmetricAnchorPoint(*flip_anchor(t),
                                                      use_degrees=True)
-                         for t in [(s_start,    -37, 90),
-                                   ((144, 312),   7, 20),
-                                   ((205, 375),  52, 50),
-                                   ((330, 380), -53, 60),
-                                   ((290, 260),-168, 50),
-                                   ((217, 245),-168, 50),
-                                   ((182, 118), -50, 60),
-                                   ((317, 125),  53, 60),
-                                   ((385, 198),  10, 20),
-                                   (s_end,      -25, 60)]]
+                         for t in [(s_start,     -37, 90),
+                                   ((144, 312),    7, 20),
+                                   ((205, 375),   52, 50),
+                                   ((330, 380),  -53, 60),
+                                   ((290, 260), -168, 50),
+                                   ((217, 245), -168, 50),
+                                   ((182, 118),  -50, 60),
+                                   ((317, 125),   53, 60),
+                                   ((385, 198),   10, 20),
+                                   (s_end,       -25, 60)]]
         # normalize anchors so they have unit radius and are centered at origin
         for a in self._anchors:
             a.pt = (a.pt - self.CENTER) / self.RADIUS
@@ -161,7 +199,7 @@ def plot_arrows(ax):
     for (xystart, xyend), iend in zip(arrow_defs, idx_end):
         # arc
         x_arc, y_arc = calc_arc(xystart, xyend)
-        ax.plot(x_arc[:iend], y_arc[:iend], '--', lw=4.5, **kwargs)
+        ax.plot(x_arc[:iend], y_arc[:iend], '--', lw=OUTLINE_WIDTH, **kwargs)
 
         arrow_tail = [x_arc[iend], y_arc[iend]]
         arrow_head = [x_arc[-1], y_arc[-1]]
@@ -171,65 +209,101 @@ def plot_arrows(ax):
         ax.add_patch(p)
 
 
-def plot_logo(lon, lat):
+def plot_logo(ax, city, with_arrows=False):
+    location = CITIES[city]
+    lon = location['lon']
+    lat = location['lat']
+    if CENTER_ON_TOP_OF_S:
+        lat -= 19
+
     globe = Basemap(projection='ortho', lon_0=lon, lat_0=lat, resolution='l')
 
-    globe.fillcontinents(color=land_color, lake_color=water_color)
-    globe.drawmapboundary(color='w', fill_color=water_color)
-    globe.drawparallels(np.arange(-90.,120.,30.), color=line_color)
-    globe.drawmeridians(np.arange(0.,420.,60.), color=line_color)
+    globe.fillcontinents(color=LAND_COLOR, lake_color=WATER_COLOR)
+    globe.drawmapboundary(color='w', fill_color=WATER_COLOR)
+    globe.drawparallels(np.arange(-90.0, 120.0, 30.), color=LINE_COLOR)
+    globe.drawmeridians(np.arange(0.0, 420.0, 60.), color=LINE_COLOR)
 
-    ax = plt.gca()
     # There's got to be a better way to get the circle patch of the globe.
     circle = [p for p in ax.patches if 'Ellipse' in str(p)][0]
 
     logo = ScipyLogo(center=circle.center, radius=0.5*circle.width, flip=True)
-    logo.plot_snake_curve(ax=ax, color=logo_color, linewidth=6,
-                          alpha=logo_alpha)
-    logo.circle.plot(color='w', linewidth=3, zorder=10)
+    logo.plot_snake_curve(ax=ax, color=LOGO_COLOR, linewidth=LINE_WIDTH,
+                          alpha=LOGO_ALPHA)
+    logo.circle.plot(color='w', linewidth=OUTLINE_WIDTH, zorder=10)
 
-    plot_arrows(ax)
+    if with_arrows:
+        plot_arrows(ax)
 
     padding = 2e5 * np.array([-1, 1])
     ax.set_xlim(ax.get_xlim() + padding)
     ax.set_ylim(ax.get_ylim() + padding)
     ax.set_clip_on(False)
+
+
+def add_title(ax):
+    font_path = os.path.join('~', 'Downloads', 'Roboto', 'Roboto-Light.ttf')
+    font_path = os.path.expanduser(font_path)
+    if os.path.exists(font_path):
+        font = fm.FontProperties(fname=font_path)
+    else:
+        url = 'https://www.google.com/fonts#UsePlace:use/Collection:Roboto'
+        print "Download Roboto font from {!r}".format(url)
+        font = 'none'
+
+    ax.text(
+        1.1, 0.45,
+        'SciPyCentral',
+        ha='left', va='center', transform=ax.transAxes,
+        alpha=1.0, color=WATER_COLOR, fontsize=50,
+        fontproperties=font,
+    )
+
+
+def save_image(city):
+    plt.savefig('scipy_central_logo_{0}.png'.format(city), dpi=120)
+
+
+def plot_logo_only(city, action='show', **kwargs):
+    fig, ax = plt.subplots(figsize=(1, 1))
     fig.subplots_adjust(bottom=0, top=1, left=0, right=1)
+    plot_logo(ax, city, **kwargs)
+    if action == 'show':
+        plt.show()
+    elif action == 'save':
+        save_image(city)
+
+
+def plot_banner(city, action='show', **kwargs):
+    fig = plt.figure(figsize=(5, 1))
+    ax = fig.add_axes([0.0, 0.075, 0.2, 0.85])
+    plot_logo(ax, city, **kwargs)
+    add_title(ax)
+    if action == 'show':
+        plt.show()
+    elif action == 'save':
+        save_image(city)
+
+
+def main():
+    logo_types = {
+        'logo_only': plot_logo_only,
+        'banner': plot_banner,
+    }
+    formatter = argparse.ArgumentDefaultsHelpFormatter
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=formatter)
+    parser.add_argument('type', choices=logo_types.keys(), default='banner',
+                        nargs='?', help="Type of logo to plot")
+    parser.add_argument('--city', choices=CITIES.keys(), default='atlantic',
+                        help="The city that's the focus of the logo.")
+    parser.add_argument('--with-arrows', action='store_true',
+                        help="Display arrows spiraling toward to city.")
+    parser.add_argument('--action', choices=['show', 'save'], default='show')
+
+    args = parser.parse_args()
+    plot = logo_types[args.type]
+    plot(args.city, action=args.action, with_arrows=args.with_arrows)
 
 
 if __name__ == '__main__':
-    fig = plt.figure(figsize=(2, 2))
-    water_color = np.asarray(colors.hex2color(colors.cnames['royalblue']))
-    land_color = 'cornflowerblue'
-    line_color = water_color * 0.8
-    logo_color = 'white'
-    logo_alpha = 0.8
-
-    cities = {
-        'austin': {'lat': 30.3, 'lon': -97.7},
-        'new_york': {'lat': 40.7, 'lon': -74},
-        'paris': {'lat': 48.9, 'lon': 2.3},
-        'san_francisco': {'lat': 32.7, 'lon': -117},
-        'tokyo': {'lat': 35.7, 'lon': 140},
-        'beijing': {'lat': 39.9, 'lon': 116},
-        'munich': {'lat': 48.1, 'lon': 11.6},
-        'berlin': {'lat': 52.5, 'lon': 13.4},
-        'sao_paulo': {'lat': -23.5, 'lon': -46.6},
-        'toronto': {'lat': 43.6, 'lon': -79.4},
-        'johannesburg': {'lat': -26.2, 'lon': 28.1},
-        'moscow': {'lat': 55.8, 'lon': 37.6},
-        'mumbai': {'lat': 19, 'lon': 72.8},
-        'london': {'lat': 51.5, 'lon': 0.1},
-        'seoul': {'lat': 37.6, 'lon': 127},
-        'mexico_city': {'lat': 19.1, 'lon': -99.4},
-    }
-
-    for city in cities:
-        fig.clf()
-        lon = cities[city]['lon']
-        lat = cities[city]['lat']
-        # Rotate so that the city coordinate is at the center of the arrows.
-        lat -= 19
-        plot_logo(lon, lat)
-        plt.savefig('scipy_central_logo_{0}.png'.format(city), dpi=120)
-
+    main()

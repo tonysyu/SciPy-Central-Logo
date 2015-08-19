@@ -243,19 +243,20 @@ def plot_logo(ax, city, with_arrows=False):
 def add_title(ax):
     font_path = os.path.join('~', 'Downloads', 'Roboto', 'Roboto-Light.ttf')
     font_path = os.path.expanduser(font_path)
+    kwargs = {}
     if os.path.exists(font_path):
-        font = fm.FontProperties(fname=font_path)
+        kwargs['fontproperties'] = fm.FontProperties(fname=font_path)
     else:
         url = 'https://www.google.com/fonts#UsePlace:use/Collection:Roboto'
-        print "Download Roboto font from {!r}".format(url)
-        font = 'none'
+        msg = "Expected to find: {}\n"
+        msg += "Download and unzip Roboto font from {!r}"
+        print msg.format(font_path, url)
 
     ax.text(
         1.1, 0.45,
         'SciPyCentral',
         ha='left', va='center', transform=ax.transAxes,
-        alpha=1.0, color=WATER_COLOR, fontsize=50,
-        fontproperties=font,
+        alpha=1.0, color=WATER_COLOR, fontsize=50, **kwargs
     )
 
 
